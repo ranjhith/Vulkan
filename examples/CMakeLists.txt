@@ -59,6 +59,7 @@ set(EXAMPLES
 	computenbody
 	computeparticles
 	computeraytracing
+	computescheduleviz
 	computeshader
 	conditionalrender
 	conservativeraster

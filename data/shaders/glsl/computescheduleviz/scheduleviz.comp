@@ -1,0 +1,110 @@
+#version 450
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x_id = 1, local_size_y_id = 2, local_size_z_id = 3) in;
+
+layout(constant_id = 0) const uint BUFFER_ELEMENTS = 32;
+
+layout(binding = 0) uniform dimensions
+{
+	uint width;
+	uint height;
+};
+
+layout(binding = 1) buffer buf0
+{
+	uvec4 inOutBuf[];
+};
+
+layout(binding = 2) buffer counter
+{
+	uint lock;
+};
+
+// TODO: Use image? layout(binding = 3, rgba32ui) uniform uimage2D inOutImg;
+
+void writeTo1DBuf(uint x, uint y, uvec4 value)
+{
+	inOutBuf[width * y + x] = value;
+}
+
+void main()
+{
+	uvec3 numGroups  = gl_NumWorkGroups;
+	uvec3 wgID       = gl_WorkGroupID;
+	uvec3 localID    = gl_LocalInvocationID;
+	uvec3 globalID   = gl_GlobalInvocationID;
+	uint  localIndex = gl_LocalInvocationIndex;
+
+	if (globalID.x >= width || globalID.y >= height)
+		return;
+
+	uint current_lock_value = atomicAdd(lock, 1);
+
+	uvec4 color = uvec4(0, 0, 0, 255);
+
+	if ((current_lock_value >= 0) && (current_lock_value <= 255))
+	{
+		// RED --> YELLOW
+		color.r = 255;
+		color.g = current_lock_value;
+		color.b = 0;
+	}
+	else if ((current_lock_value >= 256) && (current_lock_value <= 511))
+	{
+		// YELLOW --> GREEN
+		current_lock_value -= 256;
+
+		color.r = 255 - current_lock_value;
+		color.g = 255;
+		color.b = 0;
+	}
+	else if ((current_lock_value >= 512) && (current_lock_value <= 767))
+	{
+		// GREEN --> OCEAN-BLUE
+		current_lock_value -= 512;
+
+		color.r = 0;
+		color.g = 255;
+		color.b = current_lock_value;
+	}
+	else if ((current_lock_value >= 768) && (current_lock_value <= 1023))
+	{
+		// OCEAN-BLUE --> BLUE
+		current_lock_value -= 768;
+
+		color.r = 0;
+		color.g = 255 - current_lock_value;
+		color.b = 255;
+	}
+	else if ((current_lock_value >= 1024) && (current_lock_value <= 1279))
+	{
+		// BLUE --> PINK
+		current_lock_value -= 1024;
+
+		color.r = current_lock_value;
+		color.g = 0;
+		color.b = 255;
+	}
+	else if ((current_lock_value >= 1280) && (current_lock_value <= 1535))
+	{
+		// PINK --> WHITE
+		current_lock_value -= 1280;
+
+		color.r = 255;
+		color.g = current_lock_value;
+		color.b = 255;
+	}
+	else if (current_lock_value >= 1536)
+	{
+		// WHITE --> BLACK
+		current_lock_value -= 1536;
+		current_lock_value = min(current_lock_value, 255);
+
+		color.r = 255 - current_lock_value;
+		color.g = 255 - current_lock_value;
+		color.b = 255 - current_lock_value;
+	}
+
+	writeTo1DBuf(globalID.x, globalID.y, color);
+}
